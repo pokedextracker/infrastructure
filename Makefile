@@ -34,5 +34,6 @@ new:
 	@echo 'provider "aws" {' >> $(NAME)/main.tf
 	@echo '  region = "us-west-2"' >> $(NAME)/main.tf
 	@echo '}' >> $(NAME)/main.tf
+	@touch $(NAME)/outputs.tf
 
 .PHONY: lint
