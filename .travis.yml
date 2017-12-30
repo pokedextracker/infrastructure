@@ -1,0 +1,7 @@
+install:
+  - export TERRAFORM_VERSION=`cat .terraform-version`
+  - curl -Ls https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip > terraform.zip
+  - sudo unzip terraform.zip -d /usr/local/bin
+
+script:
+  - make lint
