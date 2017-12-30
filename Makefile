@@ -9,6 +9,7 @@ lint:
 		if ls $$module/*tf 1> /dev/null 2>&1; then \
 		    cd $$module; \
 		    echo "Checking $$module"; \
+		    terraform init; \
 		    terraform validate 1> /dev/null || exit 1; \
 		    cd $(ROOT); \
 		fi; \
