@@ -23,6 +23,15 @@ data "terraform_remote_state" "terraform_bucket" {
 
 data "aws_iam_policy_document" "travis" {
   statement {
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListBucket",
+    ]
+
+    resources = ["${data.terraform_remote_state.terraform_bucket.arn}"]
+  }
+
+  statement {
     actions = ["s3:GetObject"]
 
     resources = ["${data.terraform_remote_state.terraform_bucket.arn}/*"]
