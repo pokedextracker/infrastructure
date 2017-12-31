@@ -1,5 +1,7 @@
 # infrastructure
 
+[![Build Status](https://travis-ci.org/pokedextracker/infrastructure.svg)](https://travis-ci.org/pokedextracker/infrastructure)
+
 Terraform code to manage the infrastructure of pokedextracker.com
 
 ## Install
