@@ -1,6 +1,6 @@
 # infrastructure
 
-[![Build Status](https://travis-ci.org/pokedextracker/infrastructure.svg)](https://travis-ci.org/pokedextracker/infrastructure)
+[![CircleCI](https://circleci.com/gh/pokedextracker/infrastructure.svg?style=shield)](https://circleci.com/gh/pokedextracker/infrastructure)
 
 Terraform code to manage the infrastructure of pokedextracker.com
 
