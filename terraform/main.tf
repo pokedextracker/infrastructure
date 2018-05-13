@@ -2,7 +2,7 @@ terraform {
   backend "s3" {
     bucket  = "terraform.pokedextracker.com"
     encrypt = true
-    key     = "terraform_bucket.tfstate"
+    key     = "terraform.tfstate"
     region  = "us-west-2"
   }
 }
