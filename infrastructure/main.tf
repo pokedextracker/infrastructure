@@ -11,12 +11,12 @@ provider "aws" {
   region = "us-west-2"
 }
 
-data "terraform_remote_state" "terraform_bucket" {
+data "terraform_remote_state" "terraform" {
   backend = "s3"
 
   config {
     bucket = "terraform.pokedextracker.com"
-    key    = "terraform_bucket.tfstate"
+    key    = "terraform.tfstate"
     region = "us-west-2"
   }
 }
@@ -28,12 +28,12 @@ data "aws_iam_policy_document" "ci" {
       "s3:ListBucket",
     ]
 
-    resources = ["${data.terraform_remote_state.terraform_bucket.arn}"]
+    resources = ["${data.terraform_remote_state.terraform.arn}"]
   }
 
   statement {
     actions   = ["s3:GetObject"]
-    resources = ["${data.terraform_remote_state.terraform_bucket.arn}/*"]
+    resources = ["${data.terraform_remote_state.terraform.arn}/*"]
   }
 }
 
