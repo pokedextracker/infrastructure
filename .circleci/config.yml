@@ -1,0 +1,36 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/buildpack-deps:curl
+    working_directory: ~/infrastructure
+    steps:
+      - restore_cache:
+          keys:
+            - source-v1-{{ .Branch }}-{{ .Revision }}
+            - source-v1-{{ .Branch }}-
+            - source-v1-
+      - checkout
+      - save_cache:
+          key: source-v1-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - ~/infrastructure/.git
+      - restore_cache:
+          keys:
+            - terraform-zip-{{ checksum ".terraform-version" }}
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt-get install make
+            if ! [ -f ~/terraform.zip ]; then
+              TERRAFORM_VERSION=`cat .terraform-version`
+              curl -Ls https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip > ~/terraform.zip
+            fi
+            sudo unzip ~/terraform.zip -d /usr/local/bin
+      - save_cache:
+          key: terraform-zip-{{ checksum ".terraform-version" }}
+          paths:
+            - ~/terraform.zip
+      - run:
+          name: Run linter
+          command: make lint

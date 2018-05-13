@@ -2,7 +2,7 @@ terraform {
   backend "s3" {
     bucket  = "terraform.pokedextracker.com"
     encrypt = true
-    key     = "travis_iam_infrastructure.tfstate"
+    key     = "infrastructure.tfstate"
     region  = "us-west-2"
   }
 }
@@ -21,7 +21,7 @@ data "terraform_remote_state" "terraform_bucket" {
   }
 }
 
-data "aws_iam_policy_document" "travis" {
+data "aws_iam_policy_document" "ci" {
   statement {
     actions = [
       "s3:GetBucketLocation",
@@ -32,23 +32,21 @@ data "aws_iam_policy_document" "travis" {
   }
 
   statement {
-    actions = ["s3:GetObject"]
-
+    actions   = ["s3:GetObject"]
     resources = ["${data.terraform_remote_state.terraform_bucket.arn}/*"]
   }
 }
 
-resource "aws_iam_user" "travis" {
-  name = "travis-infrastructure"
+resource "aws_iam_user" "ci" {
+  name = "infrastructure-ci"
 }
 
-resource "aws_iam_access_key" "travis" {
-  user = "${aws_iam_user.travis.name}"
+resource "aws_iam_access_key" "ci" {
+  user = "${aws_iam_user.ci.name}"
 }
 
-resource "aws_iam_user_policy" "travis" {
-  name = "TravisPolicy"
-  user = "${aws_iam_user.travis.name}"
-
-  policy = "${data.aws_iam_policy_document.travis.json}"
+resource "aws_iam_user_policy" "ci" {
+  name   = "CIPolicy"
+  user   = "${aws_iam_user.ci.name}"
+  policy = "${data.aws_iam_policy_document.ci.json}"
 }
