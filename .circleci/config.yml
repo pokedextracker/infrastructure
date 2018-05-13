@@ -22,15 +22,15 @@ jobs:
           name: Install dependencies
           command: |
             sudo apt-get install make
-            if ! [ -f /usr/local/bin/terraform ]; then
+            if ! [ -f ~/terraform.zip ]; then
               TERRAFORM_VERSION=`cat .terraform-version`
-              curl -Ls https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip > terraform.zip
-              sudo unzip terraform.zip -d /usr/local/bin
+              curl -Ls https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip > ~/terraform.zip
             fi
+            sudo unzip ~/terraform.zip -d /usr/local/bin
       - save_cache:
           key: terraform-{{ checksum ".terraform-version" }}
           paths:
-            - /usr/local/bin/terraform
+            - ~/terraform.zip
       - run:
           name: Run linter
           command: make lint
