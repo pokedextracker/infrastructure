@@ -17,7 +17,7 @@ jobs:
             - ~/infrastructure/.git
       - restore_cache:
           keys:
-            - terraform-zip-{{ checksum ".terraform-version" }}
+            - terraform-zip-v1-{{ checksum ".terraform-version" }}
       - run:
           name: Install dependencies
           command: |
@@ -28,7 +28,7 @@ jobs:
             fi
             sudo unzip ~/terraform.zip -d /usr/local/bin
       - save_cache:
-          key: terraform-zip-{{ checksum ".terraform-version" }}
+          key: terraform-zip-v1-{{ checksum ".terraform-version" }}
           paths:
             - ~/terraform.zip
       - run:
