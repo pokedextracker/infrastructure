@@ -23,6 +23,7 @@ provider "aws" {
 #   --dns public \
 #   --encrypt-etcd-storage \
 #   --image kope.io/k8s-1.9-debian-jessie-amd64-hvm-ebs-2018-03-11\
+#   --kubernetes-version 1.10.5 \
 #   --master-public-name k8s.pokedextracker.com \
 #   --master-size t3.small \
 #   --master-tenancy default \

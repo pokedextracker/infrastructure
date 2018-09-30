@@ -156,7 +156,7 @@ kubeProxy:
   clusterCIDR: 100.96.0.0/11
   cpuRequest: 100m
   hostnameOverride: '@aws'
-  image: k8s.gcr.io/kube-proxy:v1.10.3
+  image: k8s.gcr.io/kube-proxy:v1.10.5
   logLevel: 2
 kubelet:
   allowPrivileged: true
@@ -188,8 +188,8 @@ __EOF_IG_SPEC
 
 cat > kube_env.yaml << '__EOF_KUBE_ENV'
 Assets:
-- 4ffe05e3cdb9291e56e0268ea2b51047761bf7ad@https://storage.googleapis.com/kubernetes-release/release/v1.10.3/bin/linux/amd64/kubelet
-- 94f996d645e74634a4be67bbb5417f892774230b@https://storage.googleapis.com/kubernetes-release/release/v1.10.3/bin/linux/amd64/kubectl
+- a74b42c2c822df86744f0ecaf2d81982a003d8b5@https://storage.googleapis.com/kubernetes-release/release/v1.10.5/bin/linux/amd64/kubelet
+- dbe431b2684f8ff4188335b3b3cea185d5a9ec44@https://storage.googleapis.com/kubernetes-release/release/v1.10.5/bin/linux/amd64/kubectl
 - d595d3ded6499a64e8dac02466e2f5f2ce257c9f@https://storage.googleapis.com/kubernetes-release/network-plugins/cni-plugins-amd64-v0.6.0.tgz
 - 1903d30f87488f6e3550918283ff8aa1c5553471@https://kubeupv2.s3.amazonaws.com/kops/1.10.0/linux/amd64/utils.tar.gz
 ClusterName: k8s.pokedextracker.com
