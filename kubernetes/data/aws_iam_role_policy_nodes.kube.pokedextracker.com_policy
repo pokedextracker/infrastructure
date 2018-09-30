@@ -1,0 +1,61 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "kopsK8sEC2NodePerms",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeRegions"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Sid": "kopsK8sS3GetListBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kops-state.pokedextracker.com"
+      ]
+    },
+    {
+      "Sid": "kopsK8sS3NodeBucketSelectiveGet",
+      "Effect": "Allow",
+      "Action": [
+        "s3:Get*"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/addons/*",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/cluster.spec",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/config",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/instancegroup/*",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/pki/issued/*",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/pki/private/kube-proxy/*",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/pki/private/kubelet/*",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/pki/ssh/*",
+        "arn:aws:s3:::kops-state.pokedextracker.com/kube.pokedextracker.com/secrets/dockerconfig"
+      ]
+    },
+    {
+      "Sid": "kopsK8sECR",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:GetRepositoryPolicy",
+        "ecr:DescribeRepositories",
+        "ecr:ListImages",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": [
+        "*"
+      ]
+    }
+  ]
+}
