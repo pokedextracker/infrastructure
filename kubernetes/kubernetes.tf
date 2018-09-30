@@ -81,10 +81,6 @@ output "vpc_id" {
   value = "vpc-587db021"
 }
 
-provider "aws" {
-  region = "us-west-2"
-}
-
 resource "aws_autoscaling_attachment" "master-us-west-2a-masters-k8s-pokedextracker-com" {
   elb                    = "${aws_elb.api-k8s-pokedextracker-com.id}"
   autoscaling_group_name = "${aws_autoscaling_group.master-us-west-2a-masters-k8s-pokedextracker-com.id}"
