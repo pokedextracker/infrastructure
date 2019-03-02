@@ -81,6 +81,10 @@ output "vpc_id" {
   value = "vpc-587db021"
 }
 
+provider "aws" {
+  region = "us-west-2"
+}
+
 resource "aws_autoscaling_attachment" "master-us-west-2a-masters-k8s-pokedextracker-com" {
   elb                    = "${aws_elb.api-k8s-pokedextracker-com.id}"
   autoscaling_group_name = "${aws_autoscaling_group.master-us-west-2a-masters-k8s-pokedextracker-com.id}"
@@ -130,8 +134,8 @@ resource "aws_autoscaling_group" "master-us-west-2a-masters-k8s-pokedextracker-c
 resource "aws_autoscaling_group" "nodes-k8s-pokedextracker-com" {
   name                 = "nodes.k8s.pokedextracker.com"
   launch_configuration = "${aws_launch_configuration.nodes-k8s-pokedextracker-com.id}"
-  max_size             = 2
-  min_size             = 2
+  max_size             = 1
+  min_size             = 1
   vpc_zone_identifier  = ["subnet-396b675f", "subnet-28cce060", "subnet-481be212"]
 
   tag = {
@@ -268,8 +272,8 @@ resource "aws_key_pair" "kubernetes-k8s-pokedextracker-com-6aa30f40dd576a5acb494
 
 resource "aws_launch_configuration" "master-us-west-2a-masters-k8s-pokedextracker-com" {
   name_prefix                 = "master-us-west-2a.masters.k8s.pokedextracker.com-"
-  image_id                    = "ami-4bfe6f33"
-  instance_type               = "t3.small"
+  image_id                    = "ami-a1e199d9"
+  instance_type               = "t2.medium"
   key_name                    = "${aws_key_pair.kubernetes-k8s-pokedextracker-com-6aa30f40dd576a5acb4943581ef88bca.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.masters-k8s-pokedextracker-com.id}"
   security_groups             = ["${aws_security_group.masters-k8s-pokedextracker-com.id}"]
@@ -292,8 +296,8 @@ resource "aws_launch_configuration" "master-us-west-2a-masters-k8s-pokedextracke
 
 resource "aws_launch_configuration" "nodes-k8s-pokedextracker-com" {
   name_prefix                 = "nodes.k8s.pokedextracker.com-"
-  image_id                    = "ami-4bfe6f33"
-  instance_type               = "t3.small"
+  image_id                    = "ami-a1e199d9"
+  instance_type               = "t2.medium"
   key_name                    = "${aws_key_pair.kubernetes-k8s-pokedextracker-com-6aa30f40dd576a5acb4943581ef88bca.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.nodes-k8s-pokedextracker-com.id}"
   security_groups             = ["${aws_security_group.nodes-k8s-pokedextracker-com.id}"]
