@@ -1,5 +1,5 @@
 output "availability_zones" {
-  value = "${data.aws_availability_zones.available.names}"
+  value = "${local.availability_zones}"
 }
 
 output "cidr_block" {

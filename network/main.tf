@@ -12,11 +12,10 @@ provider "aws" {
 }
 
 locals {
-  name       = "pokedextracker"
-  cidr_block = "10.1.0.0/16"
+  name               = "pokedextracker"
+  cidr_block         = "10.1.0.0/16"
+  availability_zones = ["us-west-2a", "us-west-2b", "us-west-2c"]
 }
-
-data "aws_availability_zones" "available" {}
 
 resource "aws_vpc" "main" {
   cidr_block                       = "${local.cidr_block}"
@@ -26,55 +25,60 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames             = true
   enable_dns_support               = true
 
-  tags = {
-    Name    = "${local.name}"
-    Project = "PokedexTracker"
-  }
+  tags = "${merge(
+    map("Name", "${local.name}"),
+    map("Project", "PokedexTracker"),
+    map("kubernetes.io/cluster/${local.name}", "shared"),
+  )}"
 }
 
 resource "aws_subnet" "public" {
-  count = "${length(data.aws_availability_zones.available.names)}"
+  count = "${length(local.availability_zones)}"
 
   vpc_id                  = "${aws_vpc.main.id}"
   cidr_block              = "${cidrsubnet(local.cidr_block, 8, count.index)}"
-  availability_zone       = "${element(data.aws_availability_zones.available.names, count.index)}"
+  availability_zone       = "${element(local.availability_zones, count.index)}"
   map_public_ip_on_launch = true
 
-  tags = {
-    Name    = "${local.name}-${format("public-%03d", count.index + 1)}"
-    Project = "PokedexTracker"
-  }
+  tags = "${merge(
+    map("Name", "${local.name}-${format("public-%03d", count.index + 1)}"),
+    map("Project", "PokedexTracker"),
+    map("kubernetes.io/cluster/${local.name}", "shared"),
+  )}"
 }
 
 resource "aws_subnet" "private" {
-  count = "${length(data.aws_availability_zones.available.names)}"
+  count = "${length(local.availability_zones)}"
 
   vpc_id            = "${aws_vpc.main.id}"
   cidr_block        = "${cidrsubnet(local.cidr_block, 8, count.index + 128)}"
-  availability_zone = "${element(data.aws_availability_zones.available.names, count.index)}"
+  availability_zone = "${element(local.availability_zones, count.index)}"
 
-  tags = {
-    Name    = "${local.name}-${format("private-%03d", count.index + 1)}"
-    Project = "PokedexTracker"
-  }
+  tags = "${merge(
+    map("Name", "${local.name}-${format("private-%03d", count.index + 1)}"),
+    map("Project", "PokedexTracker"),
+    map("kubernetes.io/cluster/${local.name}", "shared"),
+  )}"
 }
 
 resource "aws_internet_gateway" "main" {
   vpc_id = "${aws_vpc.main.id}"
 
-  tags = {
-    Name    = "${local.name}"
-    Project = "PokedexTracker"
-  }
+  tags = "${merge(
+    map("Name", "${local.name}"),
+    map("Project", "PokedexTracker"),
+    map("kubernetes.io/cluster/${local.name}", "shared"),
+  )}"
 }
 
 resource "aws_route_table" "public" {
   vpc_id = "${aws_vpc.main.id}"
 
-  tags = {
-    Name    = "${local.name}-public"
-    Project = "PokedexTracker"
-  }
+  tags = "${merge(
+    map("Name", "${local.name}-public"),
+    map("Project", "PokedexTracker"),
+    map("kubernetes.io/cluster/${local.name}", "shared"),
+  )}"
 }
 
 resource "aws_route" "public" {
@@ -84,7 +88,7 @@ resource "aws_route" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  count = "${length(data.aws_availability_zones.available.names)}"
+  count = "${length(local.availability_zones)}"
 
   subnet_id      = "${element(aws_subnet.public.*.id, count.index)}"
   route_table_id = "${aws_route_table.public.id}"
