@@ -40,6 +40,14 @@ data "aws_iam_policy_document" "workers_kms_key" {
   }
 }
 
+# https://github.com/jtblin/kube2iam#iam-roles
+data "aws_iam_policy_document" "workers_kube2iam" {
+  statement {
+    actions   = ["sts:AssumeRole"]
+    resources = ["arn:aws:iam::*:role${local.kube2iam_iam_path}*"]
+  }
+}
+
 resource "aws_iam_role" "workers" {
   name               = "${local.name}-kubernetes-workers"
   assume_role_policy = "${data.aws_iam_policy_document.workers_assume_role.json}"
@@ -55,6 +63,12 @@ resource "aws_iam_role_policy" "workers_kms_key" {
   name   = "${local.name}-kms-key"
   role   = "${aws_iam_role.workers.name}"
   policy = "${data.aws_iam_policy_document.workers_kms_key.json}"
+}
+
+resource "aws_iam_role_policy" "workers_kube2iam" {
+  name   = "${local.name}-kube2iam"
+  role   = "${aws_iam_role.workers.name}"
+  policy = "${data.aws_iam_policy_document.workers_kube2iam.json}"
 }
 
 resource "aws_iam_instance_profile" "workers" {
