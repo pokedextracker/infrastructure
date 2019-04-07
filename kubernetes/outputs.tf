@@ -1,5 +1,5 @@
 output "cluster_endpoint" {
-  value = "${aws_route53_record.k8s_public.fqdn}"
+  value = "${aws_route53_record.k8s.fqdn}"
 }
 
 output "master_ip" {

@@ -63,7 +63,7 @@ cat > /tmp/kubeadm-config.yaml <<EOF
 apiVersion: kubeadm.k8s.io/v1beta1
 discovery:
   bootstrapToken:
-    apiServerEndpoint: ${cluster_endpoint}:6443
+    apiServerEndpoint: ${cluster_endpoint_internal}:6443
     token: $KUBEADM_TOKEN
     caCertHashes:
     - "sha256:$KUBEADM_CA_KEY_HASH"

@@ -69,13 +69,15 @@ nodeRegistration:
 ---
 apiVersion: kubeadm.k8s.io/v1beta1
 clusterName: "${name}"
-controlPlaneEndpoint: "${cluster_endpoint}:6443"
+controlPlaneEndpoint: ${cluster_endpoint_internal}:6443
 kind: ClusterConfiguration
 kubernetesVersion: v${kubernetes_version}
 networking:
   podSubnet: ${pod_subnet}
   serviceSubnet: ${service_subnet}
 apiServer:
+  certSANs:
+  - ${cluster_endpoint}
   extraArgs:
     cloud-provider: aws
 controllerManager:

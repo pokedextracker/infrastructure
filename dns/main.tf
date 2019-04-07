@@ -11,44 +11,18 @@ provider "aws" {
   region = "us-west-2"
 }
 
-data "terraform_remote_state" "network" {
-  backend = "s3"
-
-  config {
-    bucket = "terraform.pokedextracker.com"
-    key    = "network.tfstate"
-    region = "us-west-2"
-  }
-}
-
-resource "aws_route53_zone" "pokedextracker_public" {
+resource "aws_route53_zone" "pokedextracker" {
   name    = "pokedextracker.com"
   comment = "Managed by pokedextracker/infrastructure"
 
   tags {
-    Name       = "pokedextracker.com"
-    Project    = "PokedexTracker"
-    Visibility = "public"
-  }
-}
-
-resource "aws_route53_zone" "pokedextracker_private" {
-  name    = "pokedextracker.com"
-  comment = "Managed by pokedextracker/infrastructure"
-
-  vpc {
-    vpc_id = "${data.terraform_remote_state.network.vpc_id}"
-  }
-
-  tags {
-    Name       = "pokedextracker.com"
-    Project    = "PokedexTracker"
-    Visibility = "private"
+    Name    = "pokedextracker.com"
+    Project = "PokedexTracker"
   }
 }
 
 resource "aws_route53_record" "apex_txt" {
-  zone_id = "${aws_route53_zone.pokedextracker_public.zone_id}"
+  zone_id = "${aws_route53_zone.pokedextracker.zone_id}"
   name    = ""
   type    = "TXT"
   ttl     = "300"
@@ -59,10 +33,8 @@ resource "aws_route53_record" "apex_txt" {
   ]
 }
 
-# TODO: make private copies of everything
-
 resource "aws_route53_record" "apex" {
-  zone_id = "${aws_route53_zone.pokedextracker_public.zone_id}"
+  zone_id = "${aws_route53_zone.pokedextracker.zone_id}"
   name    = ""
   type    = "A"
   ttl     = "300"
@@ -70,7 +42,7 @@ resource "aws_route53_record" "apex" {
 }
 
 resource "aws_route53_record" "api" {
-  zone_id = "${aws_route53_zone.pokedextracker_public.zone_id}"
+  zone_id = "${aws_route53_zone.pokedextracker.zone_id}"
   name    = "api"
   type    = "A"
   ttl     = "300"
@@ -78,7 +50,7 @@ resource "aws_route53_record" "api" {
 }
 
 resource "aws_route53_record" "staging" {
-  zone_id = "${aws_route53_zone.pokedextracker_public.zone_id}"
+  zone_id = "${aws_route53_zone.pokedextracker.zone_id}"
   name    = "staging"
   type    = "A"
   ttl     = "300"
@@ -86,7 +58,7 @@ resource "aws_route53_record" "staging" {
 }
 
 resource "aws_route53_record" "staging_api" {
-  zone_id = "${aws_route53_zone.pokedextracker_public.zone_id}"
+  zone_id = "${aws_route53_zone.pokedextracker.zone_id}"
   name    = "staging.api"
   type    = "A"
   ttl     = "300"
@@ -94,7 +66,7 @@ resource "aws_route53_record" "staging_api" {
 }
 
 resource "aws_route53_record" "www" {
-  zone_id = "${aws_route53_zone.pokedextracker_public.zone_id}"
+  zone_id = "${aws_route53_zone.pokedextracker.zone_id}"
   name    = "www"
   type    = "A"
   ttl     = "300"

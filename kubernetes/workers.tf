@@ -123,12 +123,12 @@ data "template_file" "workers_user_data" {
   template = "${file("workers-user-data.sh")}"
 
   vars {
-    cluster_endpoint   = "${aws_route53_record.k8s_public.fqdn}"
-    kubernetes_version = "${local.kubernetes_version}"
-    name               = "${local.name}"
-    pod_subnet         = "${local.pod_subnet}"
-    region             = "${data.aws_region.current.name}"
-    service_subnet     = "${local.service_subnet}"
+    cluster_endpoint_internal = "${local.cluster_endpoint_internal}"
+    kubernetes_version        = "${local.kubernetes_version}"
+    name                      = "${local.name}"
+    pod_subnet                = "${local.pod_subnet}"
+    region                    = "${data.aws_region.current.name}"
+    service_subnet            = "${local.service_subnet}"
   }
 }
 

@@ -187,17 +187,17 @@ resource "aws_eip" "master" {
   vpc = true
 }
 
-resource "aws_route53_record" "k8s_public" {
-  zone_id = "${data.terraform_remote_state.dns.public_zone_id}"
+resource "aws_route53_record" "k8s" {
+  zone_id = "${data.terraform_remote_state.dns.zone_id}"
   name    = "k8s"
   type    = "A"
   ttl     = 300
   records = ["${aws_eip.master.public_ip}"]
 }
 
-resource "aws_route53_record" "k8s_private" {
-  zone_id = "${data.terraform_remote_state.dns.private_zone_id}"
-  name    = "k8s"
+resource "aws_route53_record" "k8s_internal" {
+  zone_id = "${data.terraform_remote_state.dns.zone_id}"
+  name    = "k8s.internal"
   type    = "A"
   ttl     = 300
   records = ["${aws_instance.master.private_ip}"]
@@ -207,12 +207,13 @@ data "template_file" "masters_user_data" {
   template = "${file("masters-user-data.sh")}"
 
   vars {
-    cluster_endpoint   = "${aws_route53_record.k8s_public.fqdn}"
-    kubernetes_version = "${local.kubernetes_version}"
-    name               = "${local.name}"
-    pod_subnet         = "${local.pod_subnet}"
-    region             = "${data.aws_region.current.name}"
-    service_subnet     = "${local.service_subnet}"
+    cluster_endpoint          = "${aws_route53_record.k8s.fqdn}"
+    cluster_endpoint_internal = "${local.cluster_endpoint_internal}"
+    kubernetes_version        = "${local.kubernetes_version}"
+    name                      = "${local.name}"
+    pod_subnet                = "${local.pod_subnet}"
+    region                    = "${data.aws_region.current.name}"
+    service_subnet            = "${local.service_subnet}"
   }
 }
 
