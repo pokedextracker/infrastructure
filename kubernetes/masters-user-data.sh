@@ -11,11 +11,22 @@ KUBE_VERSION=$(apt-cache madison kubeadm | grep '\b${kubernetes_version}-\b' | t
 apt-get install -y kubelet=$KUBE_VERSION kubeadm=$KUBE_VERSION kubectl=$KUBE_VERSION
 apt-mark hold kubelet kubeadm kubectl
 
-# install docker
+# install and setup docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 apt-get update
-apt-get install -y docker-ce=18.06.1~ce~3-0~ubuntu
+apt-get install -y docker-ce=18.06.2~ce~3-0~ubuntu
+cat > /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2"
+}
+EOF
+mkdir -p /etc/systemd/system/docker.service.d
 
 # set the hostnames correctly
 echo 127.0.0.1 $(curl -s http://169.254.169.254/latest/meta-data/hostname) >> /etc/hosts

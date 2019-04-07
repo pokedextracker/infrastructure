@@ -9,7 +9,7 @@ terraform {
 
 locals {
   allowed_cidr_blocks = ["136.24.25.248/32"]
-  kubernetes_version  = "1.13.4"
+  kubernetes_version  = "1.14.0"
   name                = "pokedextracker"
   pod_subnet          = "192.168.0.0/16"
   service_subnet      = "192.168.20.0/16"
