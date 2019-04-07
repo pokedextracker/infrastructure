@@ -7,6 +7,10 @@ terraform {
   }
 }
 
+provider "aws" {
+  region = "us-west-2"
+}
+
 locals {
   allowed_cidr_blocks       = ["136.24.25.248/32"]
   cluster_endpoint_internal = "k8s.internal.pokedextracker.com"
