@@ -47,6 +47,23 @@ unzip awscli-bundle.zip
 python3 awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
 popd
 
+# create encryption config
+mkdir -p /etc/kubernetes
+ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
+cat > /etc/kubernetes/encryption-config.yaml <<EOF
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+    - secrets
+    providers:
+    - aescbc:
+        keys:
+        - name: key1
+          secret: $ENCRYPTION_KEY
+    - identity: {}
+EOF
+
 # generate the token that other nodes will use to join the cluster
 KUBEADM_TOKEN=$(kubeadm token generate)
 
@@ -80,6 +97,12 @@ apiServer:
   - ${cluster_endpoint}
   extraArgs:
     cloud-provider: aws
+    encryption-provider-config: /etc/kubernetes/encryption-config.yaml
+  extraVolumes:
+  - name: encryption-config
+    hostPath: /etc/kubernetes/encryption-config.yaml
+    mountPath: /etc/kubernetes/encryption-config.yaml
+    readOnly: true
 controllerManager:
   extraArgs:
     cloud-provider: aws
