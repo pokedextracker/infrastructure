@@ -33,6 +33,45 @@ echo 127.0.0.1 $(curl -s http://169.254.169.254/latest/meta-data/hostname) >> /e
 curl -s http://169.254.169.254/latest/meta-data/hostname > /etc/hostname
 hostname $(curl -s http://169.254.169.254/latest/meta-data/hostname)
 
+# generate our own kubelet certs instead of letting kubelet bootstrap them
+# itself because if it did that, it would generate a CA on the fly and not
+# write it out to a file, making it impossible to verify the certificate when
+# making requests against it
+pushd /tmp
+openssl genrsa -out kubelet-ca.key 2048
+openssl req -x509 -new -nodes -key kubelet-ca.key -subj "/CN=$(curl -s http://169.254.169.254/latest/meta-data/hostname)-ca" -days 10000 -out kubelet-ca.crt
+openssl genrsa -out kubelet.key 2048
+cat > csr.conf <<EOF
+[ req ]
+default_bits = 2048
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+
+[ dn ]
+CN = $(curl -s http://169.254.169.254/latest/meta-data/hostname)
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = $(curl -s http://169.254.169.254/latest/meta-data/hostname)
+
+[ v3_ext ]
+authorityKeyIdentifier=keyid,issuer:always
+basicConstraints=CA:FALSE
+keyUsage=keyEncipherment,dataEncipherment
+extendedKeyUsage=serverAuth,clientAuth
+subjectAltName=@alt_names
+EOF
+openssl req -new -key kubelet.key -out kubelet.csr -config csr.conf
+openssl x509 -req -in kubelet.csr -CA kubelet-ca.crt -CAkey kubelet-ca.key -CAcreateserial -out kubelet.crt -days 10000 -extensions v3_ext -extfile csr.conf
+rm -rf /var/lib/kubelet/pki/*
+mv kubelet-ca.crt kubelet-ca.key kubelet.crt kubelet.key /var/lib/kubelet/pki/
+service kubelet restart
+popd
+
 # set necessary system configs
 modprobe br_netfilter
 echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.conf
