@@ -16,7 +16,7 @@ locals {
   cluster_endpoint          = "k8s.pokedextracker.com"
   cluster_endpoint_internal = "k8s.internal.pokedextracker.com"
   kube2iam_iam_path         = "/kubernetes/${local.name}/"
-  kubernetes_version        = "1.14.0"
+  kubernetes_version        = "1.14.1"
   master_count              = 1
   name                      = "pokedextracker"
   pod_subnet                = "192.168.0.0/16"
