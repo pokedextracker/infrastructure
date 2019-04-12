@@ -169,10 +169,10 @@ resource "aws_launch_template" "workers" {
   vpc_security_group_ids               = ["${aws_security_group.workers.id}"]
 
   block_device_mappings {
-    device_name = "/dev/xvda"
+    device_name = "/dev/sda1"
 
     ebs {
-      volume_size = 200
+      volume_size = 50
     }
   }
 
