@@ -13,12 +13,15 @@ provider "aws" {
 
 locals {
   allowed_cidr_blocks       = ["136.24.25.248/32"]
+  cluster_endpoint          = "k8s.pokedextracker.com"
   cluster_endpoint_internal = "k8s.internal.pokedextracker.com"
   kube2iam_iam_path         = "/kubernetes/${local.name}/"
   kubernetes_version        = "1.14.0"
+  master_count              = 1
   name                      = "pokedextracker"
   pod_subnet                = "192.168.0.0/16"
   service_subnet            = "192.168.20.0/16"
+  worker_count              = 1
 }
 
 data "aws_caller_identity" "current" {}

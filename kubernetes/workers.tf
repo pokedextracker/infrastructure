@@ -1,3 +1,7 @@
+###################
+#  IAM Resources  #
+###################
+
 data "aws_iam_policy_document" "workers_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -76,6 +80,10 @@ resource "aws_iam_instance_profile" "workers" {
   role = "${aws_iam_role.workers.name}"
 }
 
+##############################
+#  Security Group Resources  #
+##############################
+
 resource "aws_security_group" "workers" {
   name        = "${local.name}-kubernetes-workers"
   description = "Security group for PokedexTrackers Kubernetes Workers"
@@ -133,6 +141,10 @@ resource "aws_security_group_rule" "workers_vpc_nodeport_ingress" {
   type              = "ingress"
 }
 
+###################
+#  ASG Resources  #
+###################
+
 data "template_file" "workers_user_data" {
   template = "${file("workers-user-data.sh")}"
 
@@ -173,6 +185,7 @@ resource "aws_launch_template" "workers" {
 
     tags = "${merge(
       map("Name", "${local.name}-kubernetes-worker"),
+      map("Role", "worker"),
       map("Project", "PokedexTracker"),
       map("kubernetes.io/cluster/${local.name}", "owned"),
     )}"
@@ -183,6 +196,7 @@ resource "aws_launch_template" "workers" {
 
     tags = "${merge(
       map("Name", "${local.name}-kubernetes-worker"),
+      map("Role", "worker"),
       map("Project", "PokedexTracker"),
       map("kubernetes.io/cluster/${local.name}", "owned"),
     )}"
@@ -190,17 +204,19 @@ resource "aws_launch_template" "workers" {
 
   tags = "${merge(
     map("Name", "${local.name}-kubernetes-worker"),
+    map("Role", "worker"),
     map("Project", "PokedexTracker"),
     map("kubernetes.io/cluster/${local.name}", "owned"),
   )}"
 }
 
 resource "aws_autoscaling_group" "workers" {
-  desired_capacity    = 1
-  max_size            = 1
-  min_size            = 0
-  name                = "${local.name}-kubernetes-workers"
-  vpc_zone_identifier = ["${data.terraform_remote_state.network.public_subnets}"]
+  desired_capacity     = "${local.worker_count}"
+  max_size             = "${local.worker_count * 2}"
+  min_size             = 0
+  name                 = "${local.name}-kubernetes-workers"
+  termination_policies = ["OldestLaunchTemplate", "OldestInstance", "ClosestToNextInstanceHour", "Default"]
+  vpc_zone_identifier  = ["${data.terraform_remote_state.network.public_subnets}"]
 
   launch_template {
     id      = "${aws_launch_template.workers.id}"

@@ -1,7 +1,13 @@
 #!/bin/bash
 
+# install NFS tools and mount EFS
+apt-get update
+apt-get -y install nfs-common
+mkdir -p /mnt
+mount -t nfs -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport ${efs_dns_name}:/ /mnt
+
 # install kubeadm and related tools
-apt-get update && apt-get install -y apt-transport-https curl
+apt-get install -y apt-transport-https curl
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
 deb https://apt.kubernetes.io/ kubernetes-xenial main
@@ -86,10 +92,53 @@ unzip awscli-bundle.zip
 python3 awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
 popd
 
-# create encryption config
-mkdir -p /etc/kubernetes
-ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
-cat > /etc/kubernetes/encryption-config.yaml <<EOF
+# acquire lock within EFS to ensure one master bootstraps the cluster
+exec 200> /mnt/lock
+flock -x 200
+
+if [ ! -f /mnt/kubernetes/pki/ca.key ]; then
+  # create Route53 records with the public and private IPs
+  aws route53 change-resource-record-sets --hosted-zone-id ${hosted_zone_id} --change-batch '
+{
+  "Changes": [{
+    "Action": "UPSERT",
+    "ResourceRecordSet": {
+      "Type": "A",
+      "TTL": 60,
+      "Name": "${cluster_endpoint_internal}",
+      "MultiValueAnswer": true,
+      "SetIdentifier": "'"$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"'",
+      "ResourceRecords": [{
+        "Value": "'"$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"'"
+      }]
+    }
+  }]
+}'
+  aws route53 change-resource-record-sets --hosted-zone-id ${hosted_zone_id} --change-batch '
+{
+  "Changes": [{
+    "Action": "UPSERT",
+    "ResourceRecordSet": {
+      "Type": "A",
+      "TTL": 60,
+      "Name": "${cluster_endpoint}",
+      "MultiValueAnswer": true,
+      "SetIdentifier": "'"$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"'",
+      "ResourceRecords": [{
+        "Value": "'"$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"'"
+      }]
+    }
+  }]
+}'
+
+  # wait 10 seconds and flush the DNS cache
+  sleep 10
+  systemd-resolve --flush-caches
+
+  # create encryption config
+  mkdir -p /etc/kubernetes
+  ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
+  cat > /etc/kubernetes/encryption-config.yaml <<EOF
 kind: EncryptionConfig
 apiVersion: v1
 resources:
@@ -103,11 +152,11 @@ resources:
     - identity: {}
 EOF
 
-# generate the token that other nodes will use to join the cluster
-KUBEADM_TOKEN=$(kubeadm token generate)
+  # generate the token that other nodes will use to join the cluster
+  KUBEADM_TOKEN=$(kubeadm token generate)
 
-# create kubeadm config file
-cat > /tmp/kubeadm-config.yaml <<EOF
+  # create kubeadm config file
+  cat > /tmp/kubeadm-config.yaml <<EOF
 apiVersion: kubeadm.k8s.io/v1beta1
 bootstrapTokens:
 - groups:
@@ -119,7 +168,7 @@ bootstrapTokens:
   - authentication
 kind: InitConfiguration
 nodeRegistration:
-  name: $(curl http://169.254.169.254/latest/meta-data/local-hostname)
+  name: $(curl -s http://169.254.169.254/latest/meta-data/local-hostname)
   kubeletExtraArgs:
     cloud-provider: aws
 ---
@@ -147,11 +196,11 @@ controllerManager:
     cloud-provider: aws
 EOF
 
-# run kubeadm
-kubeadm init --config /tmp/kubeadm-config.yaml
+  # run kubeadm
+  kubeadm init --config /tmp/kubeadm-config.yaml
 
-# install flannel
-cat <<EOF | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
+  # install flannel
+  cat <<EOF | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
@@ -317,15 +366,108 @@ spec:
             name: kube-flannel-cfg
 EOF
 
-# install EBS gp2 storage class
-kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://raw.githubusercontent.com/kubernetes/kubernetes/master/cluster/addons/storage-class/aws/default.yaml
+  # install EBS gp2 storage class
+  kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://raw.githubusercontent.com/kubernetes/kubernetes/master/cluster/addons/storage-class/aws/default.yaml
+
+  # save the token and CA key hash to SSM
+  KUBEADM_CA_KEY_HASH=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //')
+  aws ssm put-parameter --name /kubernetes/${name}/encryption_key --description 'Encryption key for Kubernetes secrets' --value $ENCRYPTION_KEY --type SecureString --key-id alias/${name}-kubernetes --region ${region}
+  aws ssm put-parameter --name /kubernetes/${name}/kubeadm_token --description 'Kubeadm token to join the cluster' --value $KUBEADM_TOKEN --type SecureString --key-id alias/${name}-kubernetes --region ${region}
+  aws ssm put-parameter --name /kubernetes/${name}/kubeadm_ca_key_hash --description 'Kubeadm CA key hash to join the cluster' --value $KUBEADM_CA_KEY_HASH --type SecureString --key-id alias/${name}-kubernetes --region ${region}
+
+  # copy necessary certificates to EFS
+  mkdir -p /mnt/kubernetes/pki/etcd/
+  cp /etc/kubernetes/pki/ca.crt /mnt/kubernetes/pki/ca.crt
+  cp /etc/kubernetes/pki/ca.key /mnt/kubernetes/pki/ca.key
+  cp /etc/kubernetes/pki/sa.key /mnt/kubernetes/pki/sa.key
+  cp /etc/kubernetes/pki/sa.pub /mnt/kubernetes/pki/sa.pub
+  cp /etc/kubernetes/pki/front-proxy-ca.crt /mnt/kubernetes/pki/front-proxy-ca.crt
+  cp /etc/kubernetes/pki/front-proxy-ca.key /mnt/kubernetes/pki/front-proxy-ca.key
+  cp /etc/kubernetes/pki/etcd/ca.crt /mnt/kubernetes/pki/etcd/ca.crt
+  cp /etc/kubernetes/pki/etcd/ca.key /mnt/kubernetes/pki/etcd/ca.key
+  cp /etc/kubernetes/admin.conf /mnt/kubernetes/admin.conf
+
+  # release lock since we're done bootstrapping
+  flock -u 200
+else
+  # release lock since we don't need it anymore
+  flock -u 200
+
+  # copy necessary certificates from EFS to their appropriate locations
+  mkdir -p /etc/kubernetes/pki/etcd/
+  cp /mnt/kubernetes/pki/ca.crt /etc/kubernetes/pki/ca.crt
+  cp /mnt/kubernetes/pki/ca.key /etc/kubernetes/pki/ca.key
+  cp /mnt/kubernetes/pki/sa.key /etc/kubernetes/pki/sa.key
+  cp /mnt/kubernetes/pki/sa.pub /etc/kubernetes/pki/sa.pub
+  cp /mnt/kubernetes/pki/front-proxy-ca.crt /etc/kubernetes/pki/front-proxy-ca.crt
+  cp /mnt/kubernetes/pki/front-proxy-ca.key /etc/kubernetes/pki/front-proxy-ca.key
+  cp /mnt/kubernetes/pki/etcd/ca.crt /etc/kubernetes/pki/etcd/ca.crt
+  cp /mnt/kubernetes/pki/etcd/ca.key /etc/kubernetes/pki/etcd/ca.key
+  cp /mnt/kubernetes/admin.conf /etc/kubernetes/admin.conf
+
+  # fetch secrets
+  ENCRYPTION_KEY=$(aws ssm get-parameters --name /kubernetes/${name}/encryption_key --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+  KUBEADM_TOKEN=$(aws ssm get-parameters --name /kubernetes/${name}/kubeadm_token --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+  KUBEADM_CA_KEY_HASH=$(aws ssm get-parameters --name /kubernetes/${name}/kubeadm_ca_key_hash --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+
+  # create encryption config
+  cat > /etc/kubernetes/encryption-config.yaml <<EOF
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+    - secrets
+    providers:
+    - aescbc:
+        keys:
+        - name: key1
+          secret: $ENCRYPTION_KEY
+    - identity: {}
+EOF
+
+  # join the cluster
+  kubeadm join ${cluster_endpoint_internal}:6443 --token $KUBEADM_TOKEN --discovery-token-ca-cert-hash $KUBEADM_CA_KEY_HASH --experimental-control-plane
+
+  # create Route53 records with the public and private IPs
+  aws route53 change-resource-record-sets --hosted-zone-id ${hosted_zone_id} --change-batch '
+{
+  "Changes": [{
+    "Action": "UPSERT",
+    "ResourceRecordSet": {
+      "Type": "A",
+      "TTL": 60,
+      "Name": "${cluster_endpoint_internal}",
+      "MultiValueAnswer": true,
+      "SetIdentifier": "'"$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"'",
+      "ResourceRecords": [{
+        "Value": "'"$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"'"
+      }]
+    }
+  }]
+}'
+  aws route53 change-resource-record-sets --hosted-zone-id ${hosted_zone_id} --change-batch '
+{
+  "Changes": [{
+    "Action": "UPSERT",
+    "ResourceRecordSet": {
+      "Type": "A",
+      "TTL": 60,
+      "Name": "${cluster_endpoint}",
+      "MultiValueAnswer": true,
+      "SetIdentifier": "'"$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"'",
+      "ResourceRecords": [{
+        "Value": "'"$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"'"
+      }]
+    }
+  }]
+}'
+
+  # wait 10 seconds and flush the DNS cache
+  sleep 10
+  systemd-resolve --flush-caches
+fi
 
 # copy admin.conf for ubuntu
 mkdir -p /home/ubuntu/.kube
 cp -i /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
 chown ubuntu:ubuntu /home/ubuntu/.kube/config
-
-# save the token and CA key hash to SSM
-KUBEADM_CA_KEY_HASH=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //')
-aws ssm put-parameter --name /kubernetes/${name}/kubeadm_token --description 'Kubeadm token to join the cluster' --value $KUBEADM_TOKEN --type SecureString --key-id alias/${name}-kubernetes --region ${region}
-aws ssm put-parameter --name /kubernetes/${name}/kubeadm_ca_key_hash --description 'Kubeadm CA key hash to join the cluster' --value $KUBEADM_CA_KEY_HASH --type SecureString --key-id alias/${name}-kubernetes --region ${region}
