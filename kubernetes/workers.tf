@@ -216,7 +216,10 @@ resource "aws_autoscaling_group" "workers" {
   min_size             = 0
   name                 = "${local.name}-kubernetes-workers"
   termination_policies = ["OldestLaunchTemplate", "OldestInstance", "ClosestToNextInstanceHour", "Default"]
-  vpc_zone_identifier  = ["${data.terraform_remote_state.network.public_subnets}"]
+
+  # we're only using us-west-2a so that our PVCs will easily be reattched if we
+  # need to cycle the node
+  vpc_zone_identifier = ["${data.terraform_remote_state.network.public_subnets.0}"]
 
   launch_template {
     id      = "${aws_launch_template.workers.id}"
