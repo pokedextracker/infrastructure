@@ -123,6 +123,15 @@ resource "aws_security_group_rule" "workers_cidr_ssh_ingress" {
   type              = "ingress"
 }
 
+resource "aws_security_group_rule" "workers_masters_vxlan_ingress" {
+  from_port                = 8472
+  protocol                 = "udp"
+  security_group_id        = "${aws_security_group.workers.id}"
+  source_security_group_id = "${aws_security_group.masters.id}"
+  to_port                  = 8472
+  type                     = "ingress"
+}
+
 resource "aws_security_group_rule" "workers_masters_kubelet_ingress" {
   from_port                = 10250
   protocol                 = "tcp"

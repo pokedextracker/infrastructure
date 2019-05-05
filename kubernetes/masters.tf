@@ -204,6 +204,15 @@ resource "aws_security_group_rule" "masters_workers_api_ingress" {
   type                     = "ingress"
 }
 
+resource "aws_security_group_rule" "masters_workers_vxlan_ingress" {
+  from_port                = 8472
+  protocol                 = "udp"
+  security_group_id        = "${aws_security_group.masters.id}"
+  source_security_group_id = "${aws_security_group.workers.id}"
+  to_port                  = 8472
+  type                     = "ingress"
+}
+
 ###################
 #  EFS Resources  #
 ###################
