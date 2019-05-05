@@ -155,8 +155,8 @@ EOF
   # generate the token that other nodes will use to join the cluster
   KUBEADM_TOKEN=$(kubeadm token generate)
 
-  # create kubeadm config file
-  cat > /tmp/kubeadm-config.yaml <<EOF
+  # create kubeadm init config file
+  cat > /tmp/kubeadm-init-config.yaml <<EOF
 apiVersion: kubeadm.k8s.io/v1beta1
 bootstrapTokens:
 - groups:
@@ -197,7 +197,7 @@ controllerManager:
 EOF
 
   # run kubeadm
-  kubeadm init --config /tmp/kubeadm-config.yaml
+  kubeadm init --config /tmp/kubeadm-init-config.yaml
 
   # install flannel
   cat <<EOF | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
@@ -425,8 +425,28 @@ resources:
     - identity: {}
 EOF
 
+  # create kubeadm join config file
+  cat > /tmp/kubeadm-join-config.yaml <<EOF
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: ${cluster_endpoint_internal}:6443
+    token: $KUBEADM_TOKEN
+    caCertHashes:
+    - "sha256:$KUBEADM_CA_KEY_HASH"
+  tlsBootstrapToken: $KUBEADM_TOKEN
+controlPlane:
+  localApiEndpoint:
+    advertiseAddress: $(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+nodeRegistration:
+  name: $(curl -s http://169.254.169.254/latest/meta-data/local-hostname)
+  kubeletExtraArgs:
+    cloud-provider: aws
+EOF
+
   # join the cluster
-  kubeadm join ${cluster_endpoint_internal}:6443 --token $KUBEADM_TOKEN --discovery-token-ca-cert-hash $KUBEADM_CA_KEY_HASH --experimental-control-plane
+  kubeadm join --config /tmp/kubeadm-join-config.yaml
 
   # create Route53 records with the public and private IPs
   aws route53 change-resource-record-sets --hosted-zone-id ${hosted_zone_id} --change-batch '
