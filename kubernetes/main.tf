@@ -12,7 +12,7 @@ provider "aws" {
 }
 
 locals {
-  allowed_cidr_blocks       = ["136.24.25.248/32", "38.104.195.58/32", "52.41.67.130/32"]
+  allowed_cidr_blocks       = ["136.24.147.41/32"]
   cluster_endpoint          = "k8s.pokedextracker.com"
   cluster_endpoint_internal = "k8s.internal.pokedextracker.com"
   kube2iam_iam_path         = "/kubernetes/${local.name}/"
