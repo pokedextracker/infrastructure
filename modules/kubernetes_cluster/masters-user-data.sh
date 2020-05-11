@@ -18,10 +18,11 @@ apt-get install -y kubelet=$KUBE_VERSION kubeadm=$KUBE_VERSION kubectl=$KUBE_VER
 apt-mark hold kubelet kubeadm kubectl
 
 # install and setup docker
+# https://kubernetes.io/docs/setup/production-environment/container-runtimes/#docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 apt-get update
-apt-get install -y docker-ce=18.06.2~ce~3-0~ubuntu
+apt-get install -y containerd.io=1.2.13-1 docker-ce=5:19.03.8~3-0~ubuntu-$(lsb_release -cs) docker-ce-cli=5:19.03.8~3-0~ubuntu-$(lsb_release -cs)
 cat > /etc/docker/daemon.json <<EOF
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -33,6 +34,8 @@ cat > /etc/docker/daemon.json <<EOF
 }
 EOF
 mkdir -p /etc/systemd/system/docker.service.d
+systemctl daemon-reload
+systemctl restart docker
 
 # set the hostnames correctly
 echo 127.0.0.1 $(curl -s http://169.254.169.254/latest/meta-data/hostname) >> /etc/hosts
@@ -80,6 +83,7 @@ popd
 
 # set necessary system configs
 modprobe br_netfilter
+echo "net.bridge.bridge-nf-call-ip6tables = 1" >> /etc/sysctl.conf
 echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.conf
 echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
 sysctl -p
@@ -199,7 +203,7 @@ EOF
   # run kubeadm
   kubeadm init --config /tmp/kubeadm-init-config.yaml
 
-  # install flannel
+  # install flannel v0.12.0
   cat <<EOF | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -261,6 +265,7 @@ data:
   cni-conf.json: |
     {
       "name": "cbr0",
+      "cniVersion": "0.3.1",
       "plugins": [
         {
           "type": "flannel",
@@ -285,7 +290,7 @@ data:
       }
     }
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: kube-flannel-ds-amd64
@@ -294,22 +299,36 @@ metadata:
     tier: node
     app: flannel
 spec:
+  selector:
+    matchLabels:
+      app: flannel
   template:
     metadata:
       labels:
         tier: node
         app: flannel
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
       hostNetwork: true
-      nodeSelector:
-        beta.kubernetes.io/arch: amd64
       tolerations:
       - operator: Exists
         effect: NoSchedule
       serviceAccountName: flannel
       initContainers:
       - name: install-cni
-        image: quay.io/coreos/flannel:v0.11.0-amd64
+        image: quay.io/coreos/flannel:v0.12.0-amd64
         command:
         - cp
         args:
@@ -323,7 +342,7 @@ spec:
           mountPath: /etc/kube-flannel/
       containers:
       - name: kube-flannel
-        image: quay.io/coreos/flannel:v0.11.0-amd64
+        image: quay.io/coreos/flannel:v0.12.0-amd64
         command:
         - /opt/bin/flanneld
         args:
@@ -339,7 +358,7 @@ spec:
         securityContext:
           privileged: false
           capabilities:
-             add: ["NET_ADMIN"]
+            add: ["NET_ADMIN"]
         env:
         - name: POD_NAME
           valueFrom:
@@ -371,9 +390,9 @@ EOF
 
   # save the token and CA key hash to SSM
   KUBEADM_CA_KEY_HASH=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //')
-  aws ssm put-parameter --name /kubernetes/${name}/encryption_key --description 'Encryption key for Kubernetes secrets' --value $ENCRYPTION_KEY --type SecureString --key-id alias/${name}-kubernetes --region ${region}
-  aws ssm put-parameter --name /kubernetes/${name}/kubeadm_token --description 'Kubeadm token to join the cluster' --value $KUBEADM_TOKEN --type SecureString --key-id alias/${name}-kubernetes --region ${region}
-  aws ssm put-parameter --name /kubernetes/${name}/kubeadm_ca_key_hash --description 'Kubeadm CA key hash to join the cluster' --value $KUBEADM_CA_KEY_HASH --type SecureString --key-id alias/${name}-kubernetes --region ${region}
+  aws ssm put-parameter --name /kubernetes/${name}-${hash}/encryption_key --description 'Encryption key for Kubernetes secrets' --value $ENCRYPTION_KEY --type SecureString --key-id alias/${name}-${hash}-kubernetes --region ${region}
+  aws ssm put-parameter --name /kubernetes/${name}-${hash}/kubeadm_token --description 'Kubeadm token to join the cluster' --value $KUBEADM_TOKEN --type SecureString --key-id alias/${name}-${hash}-kubernetes --region ${region}
+  aws ssm put-parameter --name /kubernetes/${name}-${hash}/kubeadm_ca_key_hash --description 'Kubeadm CA key hash to join the cluster' --value $KUBEADM_CA_KEY_HASH --type SecureString --key-id alias/${name}-${hash}-kubernetes --region ${region}
 
   # copy necessary certificates to EFS
   mkdir -p /mnt/kubernetes/pki/etcd/
@@ -406,9 +425,9 @@ else
   cp /mnt/kubernetes/admin.conf /etc/kubernetes/admin.conf
 
   # fetch secrets
-  ENCRYPTION_KEY=$(aws ssm get-parameters --name /kubernetes/${name}/encryption_key --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
-  KUBEADM_TOKEN=$(aws ssm get-parameters --name /kubernetes/${name}/kubeadm_token --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
-  KUBEADM_CA_KEY_HASH=$(aws ssm get-parameters --name /kubernetes/${name}/kubeadm_ca_key_hash --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+  ENCRYPTION_KEY=$(aws ssm get-parameters --name /kubernetes/${name}-${hash}/encryption_key --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+  KUBEADM_TOKEN=$(aws ssm get-parameters --name /kubernetes/${name}-${hash}/kubeadm_token --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+  KUBEADM_CA_KEY_HASH=$(aws ssm get-parameters --name /kubernetes/${name}-${hash}/kubeadm_ca_key_hash --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
 
   # create encryption config
   cat > /etc/kubernetes/encryption-config.yaml <<EOF

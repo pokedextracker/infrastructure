@@ -86,7 +86,7 @@ data "aws_iam_policy_document" "masters_kms_key" {
       "ssm:PutParameter",
     ]
 
-    resources = ["arn:aws:ssm:*:*:parameter/kubernetes/${local.name}/*"]
+    resources = ["arn:aws:ssm:*:*:parameter/kubernetes/${var.name}-${random_id.hash.hex}/*"]
   }
 
   statement {
@@ -102,35 +102,35 @@ data "aws_iam_policy_document" "masters_kms_key" {
 data "aws_iam_policy_document" "masters_route53" {
   statement {
     actions   = ["route53:ChangeResourceRecordSets"]
-    resources = ["arn:aws:route53:::hostedzone/${data.terraform_remote_state.dns.zone_id}"]
+    resources = ["arn:aws:route53:::hostedzone/${var.dns_zone_id}"]
   }
 }
 
 resource "aws_iam_role" "masters" {
-  name               = "${local.name}-kubernetes-masters"
+  name               = "${var.name}-${random_id.hash.hex}-kubernetes-masters"
   assume_role_policy = "${data.aws_iam_policy_document.masters_assume_role.json}"
 }
 
 resource "aws_iam_role_policy" "masters_cloud_provider_aws" {
-  name   = "${local.name}-cloud-provider-aws"
+  name   = "cloud-provider-aws"
   role   = "${aws_iam_role.masters.name}"
   policy = "${data.aws_iam_policy_document.masters_cloud_provider_aws.json}"
 }
 
 resource "aws_iam_role_policy" "masters_kms_key" {
-  name   = "${local.name}-kms-key"
+  name   = "kms-key"
   role   = "${aws_iam_role.masters.name}"
   policy = "${data.aws_iam_policy_document.masters_kms_key.json}"
 }
 
 resource "aws_iam_role_policy" "masters_route53" {
-  name   = "${local.name}-route53"
+  name   = "route53"
   role   = "${aws_iam_role.masters.name}"
   policy = "${data.aws_iam_policy_document.masters_route53.json}"
 }
 
 resource "aws_iam_instance_profile" "masters" {
-  name = "${local.name}-kubernetes-masters"
+  name = "${var.name}-${random_id.hash.hex}-kubernetes-masters"
   role = "${aws_iam_role.masters.name}"
 }
 
@@ -139,14 +139,15 @@ resource "aws_iam_instance_profile" "masters" {
 ##############################
 
 resource "aws_security_group" "masters" {
-  name        = "${local.name}-kubernetes-masters"
-  description = "Security group for PokedexTrackers Kubernetes Masters"
-  vpc_id      = "${data.terraform_remote_state.network.vpc_id}"
+  name        = "${var.name}-${random_id.hash.hex}-kubernetes-masters"
+  description = "Security group for ${var.name}-${random_id.hash.hex} Kubernetes Masters"
+  vpc_id      = "${data.aws_vpc.main.id}"
 
   tags = "${merge(
-    map("Name", "${local.name}-kubernetes-masters"),
+    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-masters"),
     map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "owned"),
+    map("Module", "kubernetes_cluster"),
+    map("kubernetes.io/cluster/${var.name}", "owned"),
   )}"
 }
 
@@ -169,7 +170,7 @@ resource "aws_security_group_rule" "masters_all_egress" {
 }
 
 resource "aws_security_group_rule" "masters_cidr_ssh_ingress" {
-  cidr_blocks       = ["${local.allowed_cidr_blocks}"]
+  cidr_blocks       = ["${var.allowed_cidr_blocks}"]
   from_port         = 22
   protocol          = "tcp"
   security_group_id = "${aws_security_group.masters.id}"
@@ -178,7 +179,7 @@ resource "aws_security_group_rule" "masters_cidr_ssh_ingress" {
 }
 
 resource "aws_security_group_rule" "masters_vpc_api_ingress" {
-  cidr_blocks       = ["${data.terraform_remote_state.network.cidr_block}"]
+  cidr_blocks       = ["${data.aws_vpc.main.cidr_block}"]
   from_port         = 6443
   protocol          = "tcp"
   security_group_id = "${aws_security_group.masters.id}"
@@ -187,7 +188,7 @@ resource "aws_security_group_rule" "masters_vpc_api_ingress" {
 }
 
 resource "aws_security_group_rule" "masters_cidr_api_ingress" {
-  cidr_blocks       = ["${local.allowed_cidr_blocks}"]
+  cidr_blocks       = ["${var.allowed_cidr_blocks}"]
   from_port         = 6443
   protocol          = "tcp"
   security_group_id = "${aws_security_group.masters.id}"
@@ -221,16 +222,15 @@ resource "aws_efs_file_system" "mnt" {
   encrypted = true
 
   tags = "${merge(
-    map("Name", "${local.name}-kubernetes"),
+    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes"),
     map("Project", "PokedexTracker"),
+    map("Module", "kubernetes_cluster"),
   )}"
 }
 
 resource "aws_efs_mount_target" "mnt" {
-  count = "${length(data.terraform_remote_state.network.public_subnets)}"
-
   file_system_id  = "${aws_efs_file_system.mnt.id}"
-  subnet_id       = "${element(data.terraform_remote_state.network.public_subnets, count.index)}"
+  subnet_id       = "${var.subnet_id}"
   security_groups = ["${aws_security_group.masters.id}"]
 }
 
@@ -239,28 +239,29 @@ resource "aws_efs_mount_target" "mnt" {
 ###################
 
 data "template_file" "masters_user_data" {
-  template = "${file("masters-user-data.sh")}"
+  template = "${file("${path.module}/masters-user-data.sh")}"
 
   vars {
     cluster_endpoint          = "${local.cluster_endpoint}"
     cluster_endpoint_internal = "${local.cluster_endpoint_internal}"
     efs_dns_name              = "${aws_efs_file_system.mnt.dns_name}"
-    hosted_zone_id            = "${data.terraform_remote_state.dns.zone_id}"
-    kubernetes_version        = "${local.kubernetes_version}"
-    name                      = "${local.name}"
-    pod_subnet                = "${local.pod_subnet}"
+    hash                      = "${random_id.hash.hex}"
+    hosted_zone_id            = "${var.dns_zone_id}"
+    kubernetes_version        = "${var.kubernetes_version}"
+    name                      = "${var.name}"
+    pod_subnet                = "${var.pod_subnet}"
     region                    = "${data.aws_region.current.name}"
-    service_subnet            = "${local.service_subnet}"
+    service_subnet            = "${var.service_subnet}"
   }
 }
 
 resource "aws_launch_template" "masters" {
   ebs_optimized                        = true
-  image_id                             = "${data.aws_ami.ubuntu.id}"
+  image_id                             = "${var.ami_id}"
   instance_initiated_shutdown_behavior = "terminate"
   instance_type                        = "t3.medium"
-  key_name                             = "${aws_key_pair.kubernetes.key_name}"
-  name_prefix                          = "${local.name}-kubernetes-masters-"
+  key_name                             = "${var.key_name}"
+  name_prefix                          = "${var.name}-${random_id.hash.hex}-kubernetes-masters-"
   user_data                            = "${base64encode("${data.template_file.masters_user_data.rendered}")}"
   vpc_security_group_ids               = ["${aws_security_group.masters.id}"]
 
@@ -280,10 +281,10 @@ resource "aws_launch_template" "masters" {
     resource_type = "instance"
 
     tags = "${merge(
-      map("Name", "${local.name}-kubernetes-master"),
+      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-master"),
       map("Role", "master"),
       map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${local.name}", "owned"),
+      map("kubernetes.io/cluster/${var.name}", "owned"),
     )}"
   }
 
@@ -291,30 +292,30 @@ resource "aws_launch_template" "masters" {
     resource_type = "volume"
 
     tags = "${merge(
-      map("Name", "${local.name}-kubernetes-master"),
+      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-master"),
       map("Role", "master"),
       map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${local.name}", "owned"),
+      map("kubernetes.io/cluster/${var.name}", "owned"),
     )}"
   }
 
   tags = "${merge(
-    map("Name", "${local.name}-kubernetes-master"),
+    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-master"),
     map("Role", "master"),
     map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "owned"),
+    map("kubernetes.io/cluster/${var.name}", "owned"),
   )}"
 
   depends_on = ["aws_efs_mount_target.mnt"]
 }
 
 resource "aws_autoscaling_group" "masters" {
-  desired_capacity     = "${local.master_count}"
-  max_size             = "${local.master_count * 2}"
+  desired_capacity     = "${var.master_count}"
+  max_size             = "${var.master_count * 2}"
   min_size             = 0
-  name                 = "${local.name}-kubernetes-masters"
+  name                 = "${var.name}-${random_id.hash.hex}-kubernetes-masters"
   termination_policies = ["OldestLaunchTemplate", "OldestInstance", "ClosestToNextInstanceHour", "Default"]
-  vpc_zone_identifier  = ["${data.terraform_remote_state.network.public_subnets}"]
+  vpc_zone_identifier  = ["${var.subnet_id}"]
 
   launch_template {
     id      = "${aws_launch_template.masters.id}"

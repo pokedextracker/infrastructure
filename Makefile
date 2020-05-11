@@ -1,4 +1,4 @@
-MODULES ?= $(shell find * -type d | grep -v '/\.')
+MODULES ?= $(shell find * -type d | grep -v '/\.' | grep -v 'modules')
 ROOT ?= $(shell pwd)
 
 default: lint
