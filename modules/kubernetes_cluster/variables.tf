@@ -2,13 +2,17 @@ variable "allowed_cidr_blocks" {
   type = "list"
 }
 
-variable "name" {}
+variable "ami_id" {}
+
+variable "dns_zone_id" {}
+
+variable "key_name" {}
 
 variable "kubernetes_version" {}
 
 variable "master_count" {}
 
-variable "worker_count" {}
+variable "name" {}
 
 variable "pod_subnet" {
   default = "192.168.0.0/16"
@@ -22,8 +26,4 @@ variable "service_subnet" {
 # to cycle the node.
 variable "subnet_id" {}
 
-variable "key_name" {}
-
-variable "ami_id" {}
-
-variable "dns_zone_id" {}
+variable "worker_count" {}
