@@ -3,13 +3,13 @@ output "account_id" {
 }
 
 output "cert_manager_iam_role_name" {
-  value = "${aws_iam_role.cert_manager.name}"
+  value = "${module.cluster_blue.cert_manager_iam_role_name}"
 }
 
 output "cluster_endpoint" {
-  value = "${local.cluster_endpoint}"
+  value = "${module.cluster_blue.cluster_endpoint}"
 }
 
 output "kube2iam_iam_path" {
-  value = "${local.kube2iam_iam_path}"
+  value = "${module.cluster_blue.kube2iam_iam_path}"
 }

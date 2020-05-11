@@ -35,7 +35,7 @@ data "aws_iam_policy_document" "workers_cloud_provider_aws" {
 data "aws_iam_policy_document" "workers_kms_key" {
   statement {
     actions   = ["ssm:GetParameters"]
-    resources = ["arn:aws:ssm:*:*:parameter/kubernetes/${local.name}/*"]
+    resources = ["arn:aws:ssm:*:*:parameter/kubernetes/${var.name}-${random_id.hash.hex}/*"]
   }
 
   statement {
@@ -53,30 +53,30 @@ data "aws_iam_policy_document" "workers_kube2iam" {
 }
 
 resource "aws_iam_role" "workers" {
-  name               = "${local.name}-kubernetes-workers"
+  name               = "${var.name}-${random_id.hash.hex}-kubernetes-workers"
   assume_role_policy = "${data.aws_iam_policy_document.workers_assume_role.json}"
 }
 
 resource "aws_iam_role_policy" "workers_cloud_provider_aws" {
-  name   = "${local.name}-cloud-provider-aws"
+  name   = "cloud-provider-aws"
   role   = "${aws_iam_role.workers.name}"
   policy = "${data.aws_iam_policy_document.workers_cloud_provider_aws.json}"
 }
 
 resource "aws_iam_role_policy" "workers_kms_key" {
-  name   = "${local.name}-kms-key"
+  name   = "kms-key"
   role   = "${aws_iam_role.workers.name}"
   policy = "${data.aws_iam_policy_document.workers_kms_key.json}"
 }
 
 resource "aws_iam_role_policy" "workers_kube2iam" {
-  name   = "${local.name}-kube2iam"
+  name   = "kube2iam"
   role   = "${aws_iam_role.workers.name}"
   policy = "${data.aws_iam_policy_document.workers_kube2iam.json}"
 }
 
 resource "aws_iam_instance_profile" "workers" {
-  name = "${local.name}-kubernetes-workers"
+  name = "${var.name}-${random_id.hash.hex}-kubernetes-workers"
   role = "${aws_iam_role.workers.name}"
 }
 
@@ -85,14 +85,14 @@ resource "aws_iam_instance_profile" "workers" {
 ##############################
 
 resource "aws_security_group" "workers" {
-  name        = "${local.name}-kubernetes-workers"
+  name        = "${var.name}-${random_id.hash.hex}-kubernetes-workers"
   description = "Security group for PokedexTrackers Kubernetes Workers"
-  vpc_id      = "${data.terraform_remote_state.network.vpc_id}"
+  vpc_id      = "${data.aws_vpc.main.id}"
 
   tags = "${merge(
-    map("Name", "${local.name}-kubernetes-workers"),
+    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-workers"),
     map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "owned"),
+    map("kubernetes.io/cluster/${var.name}", "owned"),
   )}"
 }
 
@@ -115,7 +115,7 @@ resource "aws_security_group_rule" "workers_all_egress" {
 }
 
 resource "aws_security_group_rule" "workers_cidr_ssh_ingress" {
-  cidr_blocks       = ["${local.allowed_cidr_blocks}"]
+  cidr_blocks       = ["${var.allowed_cidr_blocks}"]
   from_port         = 22
   protocol          = "tcp"
   security_group_id = "${aws_security_group.workers.id}"
@@ -142,7 +142,7 @@ resource "aws_security_group_rule" "workers_masters_kubelet_ingress" {
 }
 
 resource "aws_security_group_rule" "workers_vpc_nodeport_ingress" {
-  cidr_blocks       = ["${data.terraform_remote_state.network.cidr_block}"]
+  cidr_blocks       = ["${data.aws_vpc.main.cidr_block}"]
   from_port         = 30000
   protocol          = "tcp"
   security_group_id = "${aws_security_group.workers.id}"
@@ -155,25 +155,26 @@ resource "aws_security_group_rule" "workers_vpc_nodeport_ingress" {
 ###################
 
 data "template_file" "workers_user_data" {
-  template = "${file("workers-user-data.sh")}"
+  template = "${file("${path.module}/workers-user-data.sh")}"
 
   vars {
     cluster_endpoint_internal = "${local.cluster_endpoint_internal}"
-    kubernetes_version        = "${local.kubernetes_version}"
-    name                      = "${local.name}"
-    pod_subnet                = "${local.pod_subnet}"
+    hash                      = "${random_id.hash.hex}"
+    kubernetes_version        = "${var.kubernetes_version}"
+    name                      = "${var.name}"
+    pod_subnet                = "${var.pod_subnet}"
     region                    = "${data.aws_region.current.name}"
-    service_subnet            = "${local.service_subnet}"
+    service_subnet            = "${var.service_subnet}"
   }
 }
 
 resource "aws_launch_template" "workers" {
   ebs_optimized                        = true
-  image_id                             = "${data.aws_ami.ubuntu.id}"
+  image_id                             = "${var.ami_id}"
   instance_initiated_shutdown_behavior = "terminate"
   instance_type                        = "t3.medium"
-  key_name                             = "${aws_key_pair.kubernetes.key_name}"
-  name_prefix                          = "${local.name}-kubernetes-workers-"
+  key_name                             = "${var.key_name}"
+  name_prefix                          = "${var.name}-${random_id.hash.hex}-kubernetes-workers-"
   user_data                            = "${base64encode("${data.template_file.workers_user_data.rendered}")}"
   vpc_security_group_ids               = ["${aws_security_group.workers.id}"]
 
@@ -193,10 +194,10 @@ resource "aws_launch_template" "workers" {
     resource_type = "instance"
 
     tags = "${merge(
-      map("Name", "${local.name}-kubernetes-worker"),
+      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-worker"),
       map("Role", "worker"),
       map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${local.name}", "owned"),
+      map("kubernetes.io/cluster/${var.name}", "owned"),
     )}"
   }
 
@@ -204,31 +205,28 @@ resource "aws_launch_template" "workers" {
     resource_type = "volume"
 
     tags = "${merge(
-      map("Name", "${local.name}-kubernetes-worker"),
+      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-worker"),
       map("Role", "worker"),
       map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${local.name}", "owned"),
+      map("kubernetes.io/cluster/${var.name}", "owned"),
     )}"
   }
 
   tags = "${merge(
-    map("Name", "${local.name}-kubernetes-worker"),
+    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-worker"),
     map("Role", "worker"),
     map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "owned"),
+    map("kubernetes.io/cluster/${var.name}", "owned"),
   )}"
 }
 
 resource "aws_autoscaling_group" "workers" {
-  desired_capacity     = "${local.worker_count}"
-  max_size             = "${local.worker_count * 2}"
+  desired_capacity     = "${var.worker_count}"
+  max_size             = "${var.worker_count * 2}"
   min_size             = 0
-  name                 = "${local.name}-kubernetes-workers"
+  name                 = "${var.name}-${random_id.hash.hex}-kubernetes-workers"
   termination_policies = ["OldestLaunchTemplate", "OldestInstance", "ClosestToNextInstanceHour", "Default"]
-
-  # we're only using us-west-2a so that our PVCs will easily be reattched if we
-  # need to cycle the node
-  vpc_zone_identifier = ["${data.terraform_remote_state.network.public_subnets.0}"]
+  vpc_zone_identifier  = ["${var.subnet_id}"]
 
   launch_template {
     id      = "${aws_launch_template.workers.id}"

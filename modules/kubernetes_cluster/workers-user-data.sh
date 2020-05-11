@@ -12,10 +12,11 @@ apt-get install -y kubelet=$KUBE_VERSION kubeadm=$KUBE_VERSION kubectl=$KUBE_VER
 apt-mark hold kubelet kubeadm kubectl
 
 # install and setup docker
+# https://kubernetes.io/docs/setup/production-environment/container-runtimes/#docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 apt-get update
-apt-get install -y docker-ce=18.06.2~ce~3-0~ubuntu
+apt-get install -y containerd.io=1.2.13-1 docker-ce=5:19.03.8~3-0~ubuntu-$(lsb_release -cs) docker-ce-cli=5:19.03.8~3-0~ubuntu-$(lsb_release -cs)
 cat > /etc/docker/daemon.json <<EOF
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -27,6 +28,8 @@ cat > /etc/docker/daemon.json <<EOF
 }
 EOF
 mkdir -p /etc/systemd/system/docker.service.d
+systemctl daemon-reload
+systemctl restart docker
 
 # set the hostnames correctly
 echo 127.0.0.1 $(curl -s http://169.254.169.254/latest/meta-data/hostname) >> /etc/hosts
@@ -74,6 +77,7 @@ popd
 
 # set necessary system configs
 modprobe br_netfilter
+echo "net.bridge.bridge-nf-call-ip6tables = 1" >> /etc/sysctl.conf
 echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.conf
 echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
 sysctl -p
@@ -87,15 +91,15 @@ python3 awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
 popd
 
 # wait for the master to complete bootstrapping
-while [ "$(aws ssm get-parameters --name /kubernetes/pokedextracker/kubeadm_ca_key_hash --query 'Parameters[0].Value' --region us-west-2 --output text)" == "None" ]; do
+while [ "$(aws ssm get-parameters --name /kubernetes/${name}-${hash}/kubeadm_ca_key_hash --query 'Parameters[0].Value' --region us-west-2 --output text)" == "None" ]; do
   echo [$(date -u +"%FT%TZ")] - Waiting for master to be ready
   sleep 5
 done
 echo "Found CA key hash; master is ready"
 
 # fetch secrets from SSM
-KUBEADM_TOKEN=$(aws ssm get-parameters --name /kubernetes/${name}/kubeadm_token --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
-KUBEADM_CA_KEY_HASH=$(aws ssm get-parameters --name /kubernetes/${name}/kubeadm_ca_key_hash --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+KUBEADM_TOKEN=$(aws ssm get-parameters --name /kubernetes/${name}-${hash}/kubeadm_token --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
+KUBEADM_CA_KEY_HASH=$(aws ssm get-parameters --name /kubernetes/${name}-${hash}/kubeadm_ca_key_hash --with-decryption --query 'Parameters[0].Value' --region ${region} --output text)
 
 # create kubeadm config file
 cat > /tmp/kubeadm-config.yaml <<EOF

@@ -18,7 +18,7 @@ data "aws_iam_policy_document" "cert_manager" {
 
   statement {
     actions   = ["route53:ChangeResourceRecordSets"]
-    resources = ["arn:aws:route53:::hostedzone/${data.terraform_remote_state.dns.zone_id}"]
+    resources = ["arn:aws:route53:::hostedzone/${var.dns_zone_id}"]
   }
 
   statement {
@@ -28,7 +28,7 @@ data "aws_iam_policy_document" "cert_manager" {
 }
 
 resource "aws_iam_role" "cert_manager" {
-  name               = "kubernetes-${local.name}-cert-manager"
+  name               = "kubernetes-${var.name}-${random_id.hash.hex}-cert-manager"
   path               = "${local.kube2iam_iam_path}"
   assume_role_policy = "${data.aws_iam_policy_document.cert_manager_assume_role.json}"
 }
