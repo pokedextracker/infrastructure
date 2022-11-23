@@ -89,11 +89,11 @@ resource "aws_security_group" "workers" {
   description = "Security group for PokedexTrackers Kubernetes Workers"
   vpc_id      = "${data.aws_vpc.main.id}"
 
-  tags = "${merge(
-    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-workers"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${var.name}", "owned"),
-  )}"
+  tags = {
+    Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-workers",
+    Project                             = "PokedexTracker",
+    "kubernetes.io/cluster/${var.name}" = "owned",
+  }
 }
 
 resource "aws_security_group_rule" "workers_self_ingress" {
@@ -115,7 +115,7 @@ resource "aws_security_group_rule" "workers_all_egress" {
 }
 
 resource "aws_security_group_rule" "workers_cidr_ssh_ingress" {
-  cidr_blocks       = ["${var.allowed_cidr_blocks}"]
+  cidr_blocks       = var.allowed_cidr_blocks
   from_port         = 22
   protocol          = "tcp"
   security_group_id = "${aws_security_group.workers.id}"
@@ -157,7 +157,7 @@ resource "aws_security_group_rule" "workers_vpc_nodeport_ingress" {
 data "template_file" "workers_user_data" {
   template = "${file("${path.module}/workers-user-data.sh")}"
 
-  vars {
+  vars = {
     cluster_endpoint_internal = "${local.cluster_endpoint_internal}"
     hash                      = "${random_id.hash.hex}"
     kubernetes_version        = "${var.kubernetes_version}"
@@ -193,31 +193,31 @@ resource "aws_launch_template" "workers" {
   tag_specifications {
     resource_type = "instance"
 
-    tags = "${merge(
-      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-worker"),
-      map("Role", "worker"),
-      map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${var.name}", "owned"),
-    )}"
+    tags = {
+      Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-worker",
+      Role                                = "worker",
+      Project                             = "PokedexTracker",
+      "kubernetes.io/cluster/${var.name}" = "owned",
+    }
   }
 
   tag_specifications {
     resource_type = "volume"
 
-    tags = "${merge(
-      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-worker"),
-      map("Role", "worker"),
-      map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${var.name}", "owned"),
-    )}"
+    tags = {
+      Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-worker",
+      Role                                = "worker",
+      Project                             = "PokedexTracker",
+      "kubernetes.io/cluster/${var.name}" = "owned",
+    }
   }
 
-  tags = "${merge(
-    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-worker"),
-    map("Role", "worker"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${var.name}", "owned"),
-  )}"
+  tags = {
+    Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-worker",
+    Role                                = "worker",
+    Project                             = "PokedexTracker",
+    "kubernetes.io/cluster/${var.name}" = "owned",
+  }
 }
 
 resource "aws_autoscaling_group" "workers" {
@@ -230,6 +230,6 @@ resource "aws_autoscaling_group" "workers" {
 
   launch_template {
     id      = "${aws_launch_template.workers.id}"
-    version = "$$Latest"
+    version = "$Latest"
   }
 }

@@ -1,5 +1,5 @@
 variable "allowed_cidr_blocks" {
-  type = "list"
+  type = list(string)
 }
 
 variable "ami_id" {}
