@@ -143,12 +143,12 @@ resource "aws_security_group" "masters" {
   description = "Security group for ${var.name}-${random_id.hash.hex} Kubernetes Masters"
   vpc_id      = "${data.aws_vpc.main.id}"
 
-  tags = "${merge(
-    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-masters"),
-    map("Project", "PokedexTracker"),
-    map("Module", "kubernetes_cluster"),
-    map("kubernetes.io/cluster/${var.name}", "owned"),
-  )}"
+  tags = {
+    Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-masters",
+    Project                             = "PokedexTracker",
+    Module                              = "kubernetes_cluster",
+    "kubernetes.io/cluster/${var.name}" = "owned",
+  }
 }
 
 resource "aws_security_group_rule" "masters_self_ingress" {
@@ -170,7 +170,7 @@ resource "aws_security_group_rule" "masters_all_egress" {
 }
 
 resource "aws_security_group_rule" "masters_cidr_ssh_ingress" {
-  cidr_blocks       = ["${var.allowed_cidr_blocks}"]
+  cidr_blocks       = var.allowed_cidr_blocks
   from_port         = 22
   protocol          = "tcp"
   security_group_id = "${aws_security_group.masters.id}"
@@ -188,7 +188,7 @@ resource "aws_security_group_rule" "masters_vpc_api_ingress" {
 }
 
 resource "aws_security_group_rule" "masters_cidr_api_ingress" {
-  cidr_blocks       = ["${var.allowed_cidr_blocks}"]
+  cidr_blocks       = var.allowed_cidr_blocks
   from_port         = 6443
   protocol          = "tcp"
   security_group_id = "${aws_security_group.masters.id}"
@@ -221,11 +221,11 @@ resource "aws_security_group_rule" "masters_workers_vxlan_ingress" {
 resource "aws_efs_file_system" "mnt" {
   encrypted = true
 
-  tags = "${merge(
-    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes"),
-    map("Project", "PokedexTracker"),
-    map("Module", "kubernetes_cluster"),
-  )}"
+  tags = {
+    Name    = "${var.name}-${random_id.hash.hex}-kubernetes",
+    Project = "PokedexTracker",
+    Module  = "kubernetes_cluster",
+  }
 }
 
 resource "aws_efs_mount_target" "mnt" {
@@ -241,7 +241,7 @@ resource "aws_efs_mount_target" "mnt" {
 data "template_file" "masters_user_data" {
   template = "${file("${path.module}/masters-user-data.sh")}"
 
-  vars {
+  vars = {
     cluster_endpoint          = "${local.cluster_endpoint}"
     cluster_endpoint_internal = "${local.cluster_endpoint_internal}"
     efs_dns_name              = "${aws_efs_file_system.mnt.dns_name}"
@@ -280,33 +280,33 @@ resource "aws_launch_template" "masters" {
   tag_specifications {
     resource_type = "instance"
 
-    tags = "${merge(
-      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-master"),
-      map("Role", "master"),
-      map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${var.name}", "owned"),
-    )}"
+    tags = {
+      Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-master",
+      Role                                = "master",
+      Project                             = "PokedexTracker",
+      "kubernetes.io/cluster/${var.name}" = "owned",
+    }
   }
 
   tag_specifications {
     resource_type = "volume"
 
-    tags = "${merge(
-      map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-master"),
-      map("Role", "master"),
-      map("Project", "PokedexTracker"),
-      map("kubernetes.io/cluster/${var.name}", "owned"),
-    )}"
+    tags = {
+      Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-master",
+      Role                                = "master",
+      Project                             = "PokedexTracker",
+      "kubernetes.io/cluster/${var.name}" = "owned",
+    }
   }
 
-  tags = "${merge(
-    map("Name", "${var.name}-${random_id.hash.hex}-kubernetes-master"),
-    map("Role", "master"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${var.name}", "owned"),
-  )}"
+  tags = {
+    Name                                = "${var.name}-${random_id.hash.hex}-kubernetes-master",
+    Role                                = "master",
+    Project                             = "PokedexTracker",
+    "kubernetes.io/cluster/${var.name}" = "owned",
+  }
 
-  depends_on = ["aws_efs_mount_target.mnt"]
+  depends_on = [aws_efs_mount_target.mnt]
 }
 
 resource "aws_autoscaling_group" "masters" {
@@ -319,6 +319,6 @@ resource "aws_autoscaling_group" "masters" {
 
   launch_template {
     id      = "${aws_launch_template.masters.id}"
-    version = "$$Latest"
+    version = "$Latest"
   }
 }

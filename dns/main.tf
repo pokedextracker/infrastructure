@@ -17,21 +17,21 @@ locals {
 }
 
 data "aws_elb" "ingress_elb" {
-  name = "${local.ingress_elb_name}"
+  name = local.ingress_elb_name
 }
 
 resource "aws_route53_zone" "pokedextracker" {
   name    = "pokedextracker.com"
   comment = "Managed by pokedextracker/infrastructure"
 
-  tags {
+  tags = {
     Name    = "pokedextracker.com"
     Project = "PokedexTracker"
   }
 }
 
 resource "aws_route53_record" "apex_txt" {
-  zone_id = "${aws_route53_zone.pokedextracker.zone_id}"
+  zone_id = aws_route53_zone.pokedextracker.zone_id
   name    = ""
   type    = "TXT"
   ttl     = "300"
@@ -43,53 +43,53 @@ resource "aws_route53_record" "apex_txt" {
 }
 
 resource "aws_route53_record" "apex" {
-  zone_id         = "${aws_route53_zone.pokedextracker.zone_id}"
+  zone_id         = aws_route53_zone.pokedextracker.zone_id
   name            = ""
   type            = "A"
   allow_overwrite = false
 
   alias {
-    name                   = "${data.aws_elb.ingress_elb.dns_name}"
-    zone_id                = "${data.aws_elb.ingress_elb.zone_id}"
+    name                   = data.aws_elb.ingress_elb.dns_name
+    zone_id                = data.aws_elb.ingress_elb.zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_route53_record" "www" {
-  zone_id         = "${aws_route53_zone.pokedextracker.zone_id}"
+  zone_id         = aws_route53_zone.pokedextracker.zone_id
   name            = "www"
   type            = "A"
   allow_overwrite = false
 
   alias {
-    name                   = "${data.aws_elb.ingress_elb.dns_name}"
-    zone_id                = "${data.aws_elb.ingress_elb.zone_id}"
+    name                   = data.aws_elb.ingress_elb.dns_name
+    zone_id                = data.aws_elb.ingress_elb.zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_route53_record" "staging" {
-  zone_id         = "${aws_route53_zone.pokedextracker.zone_id}"
+  zone_id         = aws_route53_zone.pokedextracker.zone_id
   name            = "staging"
   type            = "A"
   allow_overwrite = false
 
   alias {
-    name                   = "${data.aws_elb.ingress_elb.dns_name}"
-    zone_id                = "${data.aws_elb.ingress_elb.zone_id}"
+    name                   = data.aws_elb.ingress_elb.dns_name
+    zone_id                = data.aws_elb.ingress_elb.zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_route53_record" "staging_www" {
-  zone_id         = "${aws_route53_zone.pokedextracker.zone_id}"
+  zone_id         = aws_route53_zone.pokedextracker.zone_id
   name            = "www.staging"
   type            = "A"
   allow_overwrite = false
 
   alias {
-    name                   = "${data.aws_elb.ingress_elb.dns_name}"
-    zone_id                = "${data.aws_elb.ingress_elb.zone_id}"
+    name                   = data.aws_elb.ingress_elb.dns_name
+    zone_id                = data.aws_elb.ingress_elb.zone_id
     evaluate_target_health = false
   }
 }

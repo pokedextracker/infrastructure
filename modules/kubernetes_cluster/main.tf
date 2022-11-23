@@ -24,7 +24,7 @@ resource "aws_kms_key" "kubernetes" {
   enable_key_rotation     = true
   is_enabled              = true
 
-  tags {
+  tags = {
     Name    = "${var.name}-${random_id.hash.hex}-kubernetes"
     Project = "PokedexTracker"
     Module  = "kubernetes_cluster"

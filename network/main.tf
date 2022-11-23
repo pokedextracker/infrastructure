@@ -18,78 +18,76 @@ locals {
 }
 
 resource "aws_vpc" "main" {
-  cidr_block                       = "${local.cidr_block}"
+  cidr_block                       = local.cidr_block
   assign_generated_ipv6_cidr_block = false
-  enable_classiclink               = false
-  enable_classiclink_dns_support   = false
   enable_dns_hostnames             = true
   enable_dns_support               = true
 
-  tags = "${merge(
-    map("Name", "${local.name}"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "shared"),
-  )}"
+  tags = {
+    Name                                  = local.name
+    Project                               = "PokedexTracker"
+    "kubernetes.io/cluster/${local.name}" = "shared"
+  }
 }
 
 resource "aws_subnet" "public" {
-  count = "${length(local.availability_zones)}"
+  count = length(local.availability_zones)
 
-  vpc_id                  = "${aws_vpc.main.id}"
-  cidr_block              = "${cidrsubnet(local.cidr_block, 8, count.index)}"
-  availability_zone       = "${element(local.availability_zones, count.index)}"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(local.cidr_block, 8, count.index)
+  availability_zone       = element(local.availability_zones, count.index)
   map_public_ip_on_launch = true
 
-  tags = "${merge(
-    map("Name", "${local.name}-${format("public-%03d", count.index + 1)}"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "shared"),
-  )}"
+  tags = {
+    Name                                  = "${local.name}-${format("public-%03d", count.index + 1)}"
+    Project                               = "PokedexTracker"
+    "kubernetes.io/cluster/${local.name}" = "shared"
+  }
 }
 
 resource "aws_subnet" "private" {
-  count = "${length(local.availability_zones)}"
+  count = length(local.availability_zones)
 
-  vpc_id            = "${aws_vpc.main.id}"
-  cidr_block        = "${cidrsubnet(local.cidr_block, 8, count.index + 128)}"
-  availability_zone = "${element(local.availability_zones, count.index)}"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(local.cidr_block, 8, count.index + 128)
+  availability_zone = element(local.availability_zones, count.index)
 
-  tags = "${merge(
-    map("Name", "${local.name}-${format("private-%03d", count.index + 1)}"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "shared"),
-  )}"
+  tags = {
+    Name                                  = "${local.name}-${format("private-%03d", count.index + 1)}"
+    Project                               = "PokedexTracker"
+    "kubernetes.io/cluster/${local.name}" = "shared"
+  }
 }
 
 resource "aws_internet_gateway" "main" {
-  vpc_id = "${aws_vpc.main.id}"
+  vpc_id = aws_vpc.main.id
 
-  tags = "${merge(
-    map("Name", "${local.name}"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "shared"),
-  )}"
+  tags = {
+    Name                                  = local.name
+    Project                               = "PokedexTracker"
+    "kubernetes.io/cluster/${local.name}" = "shared"
+  }
 }
 
 resource "aws_route_table" "public" {
-  vpc_id = "${aws_vpc.main.id}"
+  vpc_id = aws_vpc.main.id
 
-  tags = "${merge(
-    map("Name", "${local.name}-public"),
-    map("Project", "PokedexTracker"),
-    map("kubernetes.io/cluster/${local.name}", "shared"),
-  )}"
+  tags = {
+    Name                                  = "${local.name}-public"
+    Project                               = "PokedexTracker"
+    "kubernetes.io/cluster/${local.name}" = "shared"
+  }
 }
 
 resource "aws_route" "public" {
-  route_table_id         = "${aws_route_table.public.id}"
+  route_table_id         = aws_route_table.public.id
   destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = "${aws_internet_gateway.main.id}"
+  gateway_id             = aws_internet_gateway.main.id
 }
 
 resource "aws_route_table_association" "public" {
-  count = "${length(local.availability_zones)}"
+  count = length(local.availability_zones)
 
-  subnet_id      = "${element(aws_subnet.public.*.id, count.index)}"
-  route_table_id = "${aws_route_table.public.id}"
+  subnet_id      = element(aws_subnet.public.*.id, count.index)
+  route_table_id = aws_route_table.public.id
 }

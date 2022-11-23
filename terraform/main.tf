@@ -19,7 +19,7 @@ resource "aws_s3_bucket" "terraform" {
     enabled = true
   }
 
-  tags {
+  tags = {
     Project = "PokedexTracker"
   }
 }
