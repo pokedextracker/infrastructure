@@ -9,6 +9,7 @@ terraform {
 
 provider "aws" {
   region = "us-west-2"
+  version = "v2.70.0"
 }
 
 data "aws_caller_identity" "current" {}
